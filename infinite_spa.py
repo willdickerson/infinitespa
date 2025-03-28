@@ -3,9 +3,10 @@ import numpy as np
 import os
 import subprocess
 import sys
-from midiutil.MidiFile import MIDIFile
 import time
 from enum import Enum
+from midiutil import MIDIFile
+import mido  # Add mido for direct MIDI playback
 
 class ChordType(Enum):
     MAJOR = "major"
@@ -382,7 +383,7 @@ class TymoczkoChordGenerator:
     
     def create_midi_file(self, progression, filename="chord_progression.mid", tempo=90, 
                          instrument=0, melody_instrument=73, volume=100, melody_volume=100,
-                         time_signature=(3, 4), include_melody=True):
+                         time_signature=(3, 4), include_melody=True, open_player=True):
         """
         Create a MIDI file from a chord progression with optional melody.
         
@@ -396,6 +397,7 @@ class TymoczkoChordGenerator:
             melody_volume: MIDI velocity for melody (0-127).
             time_signature: Tuple of (numerator, denominator) for time signature.
             include_melody: Whether to include a generated melody.
+            open_player: Whether to open the MIDI file with the default player.
         """
         # Create a MIDI file with 2 tracks (chords and melody)
         track_count = 2 if include_melody else 1
@@ -479,7 +481,114 @@ class TymoczkoChordGenerator:
             midi.writeFile(output_file)
         
         print(f"MIDI file created: {filename} in {time_signature[0]}/{time_signature[1]} time")
-        return filename
+        
+        # Try to open the MIDI file with the default player if requested
+        if open_player:
+            try:
+                print("\nAttempting to open chord_progression.mid with the default MIDI player...")
+                if sys.platform == "darwin":  # macOS
+                    subprocess.run(["open", filename], check=True)
+                elif sys.platform == "win32":  # Windows
+                    os.startfile(filename)
+                else:  # Linux
+                    subprocess.run(["xdg-open", filename], check=True)
+            except Exception as e:
+                print(f"Error opening MIDI file: {e}")
+            
+    def find_fluidsynth_port(self):
+        """
+        Find the FluidSynth virtual port from the available output ports.
+
+        Returns:
+            str: The name of the FluidSynth virtual port, or None if not found.
+        """
+        try:
+            output_names = mido.get_output_names()
+            for name in output_names:
+                if 'FluidSynth virtual port' in name:
+                    return name
+            return None
+        except ImportError:
+            print("Error: rtmidi module not found. Install with: pip install python-rtmidi")
+            return None
+        except Exception as e:
+            print(f"Error detecting MIDI ports: {e}")
+            return None
+    
+    def play_note(self, outport, midi_note, duration=0.5, velocity=100):
+        """
+        Play a MIDI note with the specified duration and velocity.
+
+        Args:
+            outport: The MIDI output port.
+            midi_note: The MIDI note number to play.
+            duration: The duration of the note in seconds.
+            velocity: The velocity of the note.
+        """
+        outport.send(mido.Message('note_on', note=midi_note, velocity=velocity))
+        time.sleep(duration)
+        outport.send(mido.Message('note_off', note=midi_note, velocity=velocity))
+    
+    def play_chord(self, outport, notes, duration=0.5, velocity=100):
+        """
+        Play a chord with the specified duration and velocity.
+
+        Args:
+            outport: The MIDI output port.
+            notes: List of MIDI note numbers to play.
+            duration: The duration of the chord in seconds.
+            velocity: The velocity of the notes.
+        """
+        # Send note_on messages for all notes
+        for note in notes:
+            outport.send(mido.Message('note_on', note=note, velocity=velocity))
+        
+        # Wait for the specified duration
+        time.sleep(duration)
+        
+        # Send note_off messages for all notes
+        for note in notes:
+            outport.send(mido.Message('note_off', note=note, velocity=velocity))
+    
+    def play_progression_with_fluidsynth(self, progression, tempo=90, instrument=0, 
+                                         melody_instrument=73, volume=100, melody_volume=100,
+                                         time_signature=(3, 4), include_melody=True):
+        """
+        Play a chord progression directly using FluidSynth by sending the MIDI file to FluidSynth.
+        
+        Args:
+            progression: List of chord dictionaries.
+            tempo: Tempo in BPM.
+            instrument: MIDI instrument number for chords.
+            melody_instrument: MIDI instrument number for melody.
+            volume: MIDI velocity for chords.
+            melody_volume: MIDI velocity for melody.
+            time_signature: Tuple of (numerator, denominator) for time signature.
+            include_melody: Whether to include a generated melody.
+        """
+        # Find FluidSynth port
+        fluidsynth_port = self.find_fluidsynth_port()
+        if not fluidsynth_port:
+            print("\nFluidSynth virtual port not found. Please make sure FluidSynth is running.")
+            print("On macOS, execute: fluidsynth -a coreaudio -m coremidi /path/to/soundfont.sf2")
+            print("On Linux, execute: fluidsynth -a pulseaudio -m alsa_seq /path/to/soundfont.sf2")
+            print("On Windows, execute: fluidsynth -a dsound -m winmidi /path/to/soundfont.sf2")
+            return
+            
+        # Play the MIDI file directly using mido
+        print(f"Playing MIDI file through FluidSynth port: {fluidsynth_port}")
+        try:
+            mid = mido.MidiFile('chord_progression.mid')
+            outport = mido.open_output(fluidsynth_port)
+            
+            print("Starting playback...")
+            for msg in mid.play():
+                outport.send(msg)
+                
+            outport.close()
+            print("Playback complete")
+        except Exception as e:
+            print(f"Error playing MIDI file: {e}")
 
 class MelodyGenerator:
     """
@@ -724,61 +833,45 @@ class MelodyGenerator:
 if __name__ == "__main__":
     # Create a chord generator in C minor
     chord_gen = TymoczkoChordGenerator(key=0)
-    chord_gen.current_function = "i"  # Start with minor tonic
     
-    print(f"Starting in key: {NOTE_NAMES[chord_gen.key]} minor")
+    # Generate a progression of 16 chords
+    progression = []
+    print("\nStarting in key: C minor\n")
+    print("Generating chord progression:")
+    print("--------------------------------------------------")
+    for i in range(16):
+        chord = chord_gen.get_next_chord()
+        progression.append(chord)
+        print(f"Chord {i+1}: {chord_gen.get_chord_name(chord)} - Voicing: {', '.join([NOTE_NAMES[note % 12] + str(note // 12) for note in chord['voicing']])}")
     
-    # Generate and print a progression of 16 chords
-    print("\nGenerating chord progression:")
-    print("-" * 50)
+    print("\nFinal state:")
+    print(chord_gen.get_current_state())
     
+    # Try to play with FluidSynth if available
+    print("\nChecking for FluidSynth availability...")
     try:
-        # Store the progression
-        chord_sequence = []
+        fluidsynth_port = chord_gen.find_fluidsynth_port()
         
-        for chord_num in range(16):
-            chord = chord_gen.get_next_chord()
-            chord_name = chord_gen.get_chord_name()
-            function = chord["function"]
-            voicing_str = ", ".join([NOTE_NAMES[n%12] + str(n//12-1) for n in chord["voicing"]])
-            print(f"Chord {chord_num+1}: {chord_name} ({function}) - Voicing: {voicing_str}")
-            
-            # Add to progression
-            chord_sequence.append(chord)
-        
-        # Print final state
-        print("\nFinal state:")
-        print(chord_gen.get_current_state())
-        
-        # MIDI instrument options
-        # 0: Acoustic Grand Piano
-        # 4: Electric Piano
-        # 24: Acoustic Guitar (nylon)
-        # 32: Acoustic Bass
-        # 48: String Ensemble
-        
-        # Create MIDI file with piano sound
-        midi_file = chord_gen.create_midi_file(
-            chord_sequence, 
-            filename="chord_progression.mid", 
-            tempo=80,
-            instrument=0,  # Acoustic Grand Piano
-            melody_instrument=73,  # Flute
-            volume=100,
-            melody_volume=100,
-            include_melody=True
-        )
-        
-        # Attempt to play the MIDI file with the system's default player
-        print(f"\nAttempting to open {midi_file} with the default MIDI player...")
-        try:
-            if os.name == 'posix':  # macOS or Linux
-                subprocess.run(["open", midi_file], check=True)
-            else:
-                print("Unsupported operating system. Please open the MIDI file manually.")
-        except (subprocess.SubprocessError, FileNotFoundError) as e:
-            print(f"Could not open MIDI file automatically: {e}")
-            print(f"Please open {midi_file} manually with your MIDI player.")
-    
-    except KeyboardInterrupt:
-        print("\nProgram stopped by user")
+        if fluidsynth_port:
+            print(f"FluidSynth found at port: {fluidsynth_port}")
+            print("Playing progression with FluidSynth...")
+            # Create MIDI file without opening player
+            chord_gen.create_midi_file(progression, include_melody=True, open_player=False)
+            # Play with FluidSynth
+            chord_gen.play_progression_with_fluidsynth(progression, include_melody=True)
+        else:
+            print("FluidSynth not found. To use FluidSynth for direct MIDI playback:")
+            print("1. Install FluidSynth: brew install fluidsynth (macOS) or apt-get install fluidsynth (Linux)")
+            print("2. Download a SoundFont file (e.g., FluidR3_GM.sf2)")
+            print("3. Run FluidSynth in a separate terminal:")
+            print("   - macOS: fluidsynth -a coreaudio -m coremidi /path/to/soundfont.sf2")
+            print("   - Linux: fluidsynth -a pulseaudio -m alsa_seq /path/to/soundfont.sf2")
+            print("   - Windows: fluidsynth -a dsound -m winmidi /path/to/soundfont.sf2")
+            print("4. Run this script again")
+            # Create MIDI file and open player since FluidSynth is not available
+            chord_gen.create_midi_file(progression, include_melody=True, open_player=False)
+    except Exception as e:
+        print(f"Error checking for FluidSynth: {e}")
+        print("MIDI file was created successfully and can be played with any MIDI player.")
+        # Create MIDI file and open player as fallback
+        chord_gen.create_midi_file(progression, include_melody=True, open_player=False)
