@@ -384,7 +384,7 @@ class TymoczkoChordGenerator:
         }
     
     def create_midi_file(self, progression, filename="chord_progression.mid", tempo=70, 
-                         instrument=8, melody_instrument=11, volume=80, melody_volume=90,
+                         instrument=0, melody_instrument=0, volume=70, melody_volume=90,
                          time_signature=(3, 4), include_melody=True, open_player=True):
         """
         Create a MIDI file from a chord progression with optional melody.
@@ -440,15 +440,20 @@ class TymoczkoChordGenerator:
             random.seed(int(time.time()))
         
         # Add each chord to the MIDI file
-        for _, chord in enumerate(progression):
+        for chord_index, chord in enumerate(progression):
             # Set chord instrument on channel 0
             midi.addProgramChange(chord_track, chord_channel, time_position, instrument)
             
             # Sort the notes from low to high for arpeggiation
             sorted_notes = sorted(chord["voicing"])
             
+            # Add damper pedal on before the first note
+            # CC 64 is the damper pedal, value 127 is fully on
+            midi.addControllerEvent(chord_track, chord_channel, time_position, 64, 127)
+            
             # Add each note in the chord as an arpeggiated eighth note
             current_position = time_position
+            
             for note in sorted_notes:
                 # Add note (track, channel, pitch, time, duration, volume)
                 midi.addNote(chord_track, chord_channel, note, current_position, eighth_note_duration, volume)
@@ -457,8 +462,15 @@ class TymoczkoChordGenerator:
             # Calculate remaining time in the measure for rest
             # Each chord takes len(sorted_notes) eighth notes
             notes_duration = len(sorted_notes) * eighth_note_duration
-            # Using rest_duration to calculate when the next chord should start
-            rest_duration = measure_duration - notes_duration
+            # Calculate time until the next chord starts
+            measure_remaining = measure_duration - notes_duration
+            
+            # Keep the damper pedal on for a bit after the last note to let it ring
+            # Then release the damper pedal slightly before the next chord
+            # This creates a smooth transition between chords without blurring them together too much
+            pedal_release_time = time_position + measure_duration - 0.1
+            if pedal_release_time > time_position:
+                midi.addControllerEvent(chord_track, chord_channel, pedal_release_time, 64, 0)
             
             # Generate and add melody if requested
             if include_melody:
