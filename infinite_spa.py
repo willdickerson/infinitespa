@@ -553,7 +553,7 @@ class TymoczkoChordGenerator:
             outport.send(mido.Message('note_off', note=note, velocity=velocity))
     
     def play_progression_with_fluidsynth(self, progression, tempo=70, instrument=0, 
-                                         melody_instrument=73, volume=100, melody_volume=100,
+                                         melody_instrument=73, volume=70, melody_volume=100,
                                          time_signature=(3, 4), include_melody=True):
         """
         Play a chord progression directly using FluidSynth by sending the MIDI file to FluidSynth.
@@ -636,30 +636,30 @@ class MelodyGenerator:
         # 1.0 = quarter note, 2.0 = half note, 3.0 = dotted half note
         # All patterns must sum to 3.0 or less (for 3/4 time)
         self.rhythmic_patterns = [
-            # Sparse patterns with quarter notes and rests
-            [1.0, -1.0, 1.0],                # Quarter, rest, quarter
-            [1.0, -2.0],                     # Quarter, half rest
-            [-1.0, 1.0, -1.0],               # Rest, quarter, rest
-            [-1.0, 2.0],                     # Rest, half note
-            [2.0, -1.0],                     # Half, rest
+            # Patterns ending with longer notes to ring out
+            [1.0, 2.0],                      # Quarter, half (rings out)
+            [-1.0, 2.0],                     # Rest, half note (rings out)
+            [1.0, -0.5, 1.5],                # Quarter, short rest, longer note (rings out)
             
             # Single longer notes
-            [3.0],                           # Dotted half (whole measure)
+            [3.0],                           # Dotted half (whole measure, rings out)
             [2.0, 1.0],                      # Half, quarter
-            [1.0, 2.0],                      # Quarter, half
+            
+            # Sparse patterns with quarter notes and rests
+            [1.0, -1.0, 1.0],                # Quarter, rest, quarter
+            [-1.0, 1.0, -1.0],               # Rest, quarter, rest
+            [2.0, -1.0],                     # Half, rest
             
             # More sparse patterns
-            [1.0, -1.0, -1.0],               # Quarter, two rests
             [-1.0, 1.0, 1.0],                # Rest, two quarters
-            [1.0, 1.0, -1.0],                # Two quarters, rest
             [-2.0, 1.0],                     # Half rest, quarter
             
             # Very sparse patterns (mostly rests)
             [-2.0, -1.0],                    # Silence for the whole measure
             [-1.0, -1.0, 1.0],               # Two rests, quarter
-            [1.0, -1.0, -1.0]                # Quarter, two rests
         ]
         
+        # Initialize the random seed
         if seed is not None:
             random.seed(seed)
     
@@ -690,7 +690,11 @@ class MelodyGenerator:
             )
             
             # Check for dissonant intervals
-            if interval == 1 or interval == 11:  # Minor 2nd or Major 7th
+            if interval == 1:  # Minor 2nd
+                return True
+            if interval == 2:  # Major 2nd
+                return True
+            if interval == 11:  # Major 7th
                 return True
             if interval == 6:  # Tritone
                 return True
@@ -800,16 +804,26 @@ class MelodyGenerator:
         
         # Choose a pattern that fits the measure
         valid_patterns = []
+        ring_out_patterns = []
+        
         for pattern in self.rhythmic_patterns:
             pattern_duration = sum([abs(duration) for duration in pattern])
             if pattern_duration <= measure_duration:
-                valid_patterns.append(pattern)
+                # Check if the pattern ends with a note (positive value)
+                if pattern and pattern[-1] > 0:
+                    ring_out_patterns.append(pattern)
+                else:
+                    valid_patterns.append(pattern)
         
-        if not valid_patterns:
-            # Fallback to simple pattern if none fit
-            return [1.0, -2.0]  # Quarter note, then rest
+        # Prioritize patterns that end with a note (70% chance)
+        if ring_out_patterns and random.random() < 0.7:
+            selected_pattern = random.choice(ring_out_patterns)
+        elif valid_patterns:
+            selected_pattern = random.choice(valid_patterns)
+        else:
+            # Fallback to a simple pattern that rings out
+            return [1.0, 2.0]  # Quarter note, then half note
         
-        selected_pattern = random.choice(valid_patterns)
         return selected_pattern
     
     def generate_melody_for_chord(self, chord, measure_duration):
