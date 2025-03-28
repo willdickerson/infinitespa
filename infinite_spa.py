@@ -379,28 +379,40 @@ class TymoczkoChordGenerator:
         }
     
     def create_midi_file(self, progression, filename="chord_progression.mid", tempo=90, 
-                         instrument=0, volume=100, time_signature=(3, 4)):
+                         instrument=0, melody_instrument=73, volume=100, melody_volume=100,
+                         time_signature=(3, 4), include_melody=True):
         """
-        Create a MIDI file from a chord progression.
+        Create a MIDI file from a chord progression with optional melody.
         
         Args:
             progression: List of chord dictionaries.
             filename: Output MIDI filename.
             tempo: Tempo in BPM.
-            instrument: MIDI instrument number (0-127, default 0=Acoustic Grand Piano).
-            volume: MIDI velocity (0-127).
+            instrument: MIDI instrument number for chords (0-127, default 0=Acoustic Grand Piano).
+            melody_instrument: MIDI instrument number for melody (0-127, default 73=Flute).
+            volume: MIDI velocity for chords (0-127).
+            melody_volume: MIDI velocity for melody (0-127).
             time_signature: Tuple of (numerator, denominator) for time signature.
+            include_melody: Whether to include a generated melody.
         """
-        # Create MIDI file with 1 track
-        midi = MIDIFile(1)
+        # Create a MIDI file with 2 tracks (chords and melody)
+        track_count = 2 if include_melody else 1
+        midi = MIDIFile(track_count)
         
-        # Setup track
-        track = 0
+        # Track numbers
+        chord_track = 0
+        melody_track = 1
+        
+        # Initial time position
         time_position = 0
         
         # Add track name and tempo
-        midi.addTrackName(track, time_position, "Chord Progression")
-        midi.addTempo(track, time_position, tempo)
+        midi.addTrackName(chord_track, time_position, "Chord Progression")
+        midi.addTempo(chord_track, time_position, tempo)
+        
+        if include_melody:
+            midi.addTrackName(melody_track, time_position, "Melody")
+            midi.addTempo(melody_track, time_position, tempo)
         
         # Set time signature (numerator/denominator)
         numerator, denominator = time_signature
@@ -411,10 +423,14 @@ class TymoczkoChordGenerator:
         # Duration of eighth note in beats (quarter notes)
         eighth_note_duration = 0.5
         
+        # Create a melody generator if needed
+        if include_melody:
+            melody_gen = MelodyGenerator(key=self.key)
+        
         # Add each chord to the MIDI file
-        for progression_idx, chord_item in enumerate(progression):
-            # Set instrument
-            midi.addProgramChange(track, 0, time_position, instrument)
+        for chord_item in progression:
+            # Set chord instrument
+            midi.addProgramChange(chord_track, 0, time_position, instrument)
             
             # Sort the notes from low to high for arpeggiation
             sorted_notes = sorted(chord_item["voicing"])
@@ -423,13 +439,31 @@ class TymoczkoChordGenerator:
             current_position = time_position
             for note in sorted_notes:
                 # Add note (track, channel, pitch, time, duration, volume)
-                midi.addNote(track, 0, note, current_position, eighth_note_duration, volume)
+                midi.addNote(chord_track, 0, note, current_position, eighth_note_duration, volume)
                 current_position += eighth_note_duration
             
             # Calculate remaining time in the measure for rest
             # Each chord takes len(sorted_notes) eighth notes
             notes_duration = len(sorted_notes) * eighth_note_duration
             rest_duration = measure_duration - notes_duration
+            
+            # Generate and add melody if requested
+            if include_melody:
+                # Set melody instrument
+                midi.addProgramChange(melody_track, 0, time_position, melody_instrument)
+                
+                # Add chord notes to the chord_item for melody generation
+                if "notes" not in chord_item:
+                    chord_item["notes"] = [note % 12 for note in sorted_notes]
+                
+                # Generate melody for this chord
+                melody_notes = melody_gen.generate_melody_for_chord(chord_item, measure_duration)
+                
+                # Add melody notes to the MIDI file
+                for note, start_time, duration in melody_notes:
+                    if note > 0:  # Skip rests (represented by note <= 0)
+                        note_position = time_position + start_time
+                        midi.addNote(melody_track, 0, note, note_position, duration, melody_volume)
             
             # Move to next measure
             time_position += measure_duration
@@ -440,6 +474,218 @@ class TymoczkoChordGenerator:
         
         print(f"MIDI file created: {filename} in {time_signature[0]}/{time_signature[1]} time")
         return filename
+
+class MelodyGenerator:
+    """
+    Generates melodic lines that complement a chord progression.
+    Uses principles of voice-leading and chord tones to create coherent melodies.
+    """
+    
+    def __init__(self, key=0, scale_type="major", seed=None):
+        """
+        Initialize the melody generator.
+        
+        Args:
+            key: Integer representing the key (0=C, 1=C#, etc.)
+            scale_type: Type of scale to use ("major" or "minor")
+            seed: Random seed for reproducibility
+        """
+        self.key = key
+        self.scale_type = scale_type
+        
+        # Define scale patterns (intervals from root)
+        self.scale_patterns = {
+            "major": [0, 2, 4, 5, 7, 9, 11],  # Major scale
+            "minor": [0, 2, 3, 5, 7, 8, 10],  # Natural minor scale
+            "harmonic_minor": [0, 2, 3, 5, 7, 8, 11],  # Harmonic minor
+            "melodic_minor": [0, 2, 3, 5, 7, 9, 11],   # Melodic minor (ascending)
+            "pentatonic_major": [0, 2, 4, 7, 9],       # Major pentatonic
+            "pentatonic_minor": [0, 3, 5, 7, 10],      # Minor pentatonic
+            "blues": [0, 3, 5, 6, 7, 10]               # Blues scale
+        }
+        
+        # Set the scale based on key and scale type
+        self.current_scale = self._build_scale(self.key, self.scale_type)
+        
+        # Set the melodic range (MIDI note numbers)
+        self.lower_bound = 60  # Middle C
+        self.upper_bound = 84  # C6
+        
+        # Initialize the current melodic position
+        self.current_position = 72  # C5
+        
+        # Rhythmic patterns (in eighth notes)
+        # Note: 0 represents a rest
+        self.rhythmic_patterns = [
+            [1, 1, 0, 1, 0, 1],         # Eighth, eighth, rest, eighth, rest, eighth
+            [2, 0, 1, 0, 1],            # Quarter, rest, eighth, rest, eighth
+            [1, 0, 1, 0, 2],            # Eighth, rest, eighth, rest, quarter
+            [2, 0, 2],                  # Quarter, rest, quarter
+            [1, 0.5, 0.5, 0, 1, 0, 1],  # Eighth, two sixteenths, rest, eighth, rest, eighth
+            [3, 0, 1],                  # Dotted quarter, rest, eighth
+            [1, 0, 3],                  # Eighth, rest, dotted quarter
+            [2, 0, 0, 2],               # Quarter, two rests, quarter
+            [0, 1, 1, 0, 1, 0, 1],      # Rest, eighth, eighth, rest, eighth, rest, eighth
+            [0, 0, 4],                  # Two rests, half note
+        ]
+        
+        if seed is not None:
+            random.seed(seed)
+    
+    def _build_scale(self, key, scale_type):
+        """Build a scale based on key and scale type."""
+        pattern = self.scale_patterns.get(scale_type, self.scale_patterns["major"])
+        return [(key + interval) % 12 for interval in pattern]
+    
+    def _is_chord_tone(self, note, chord_notes):
+        """Check if a note is a chord tone."""
+        return (note % 12) in chord_notes
+    
+    def _get_chord_scale(self, chord):
+        """Get appropriate scale for a given chord."""
+        # Extract chord information
+        root = chord["root"]
+        chord_type = chord["type"]
+        
+        # Choose scale based on chord type
+        if chord_type == ChordType.MAJOR or chord_type == ChordType.MAJOR7:
+            return self._build_scale(root, "major")
+        elif chord_type == ChordType.MINOR or chord_type == ChordType.MINOR7:
+            return self._build_scale(root, "minor")
+        elif chord_type == ChordType.DIMINISHED or chord_type == ChordType.HALF_DIMINISHED:
+            return self._build_scale((root + 3) % 12, "harmonic_minor")  # Related harmonic minor
+        elif chord_type == ChordType.DOMINANT7:
+            # For dominant chords, use mixolydian mode (major with flat 7)
+            major_scale = self._build_scale(root, "major")
+            major_scale[6] = (major_scale[6] - 1) % 12  # Flatten the 7th
+            return major_scale
+        else:
+            # Default to major scale
+            return self._build_scale(root, "major")
+    
+    def _get_next_note_options(self, chord, prev_note, scale):
+        """Get possible next notes based on current chord and previous note."""
+        options = []
+        
+        # Define movement options (in semitones)
+        step_options = [-2, -1, 1, 2]  # Small steps
+        leap_options = [-5, -4, -3, 3, 4, 5]  # Medium leaps
+        large_leap_options = [-12, -8, -7, 7, 8, 12]  # Large leaps (use sparingly)
+        
+        # Add step options (higher probability)
+        for step in step_options:
+            candidate = prev_note + step
+            if self.lower_bound <= candidate <= self.upper_bound:
+                # Check if note is in scale
+                if (candidate % 12) in scale:
+                    # Higher weight for chord tones
+                    weight = 5 if self._is_chord_tone(candidate, chord["notes"]) else 3
+                    options.append((candidate, weight))
+        
+        # Add leap options (medium probability)
+        for leap in leap_options:
+            candidate = prev_note + leap
+            if self.lower_bound <= candidate <= self.upper_bound:
+                if (candidate % 12) in scale:
+                    # Medium weight for leaps
+                    weight = 3 if self._is_chord_tone(candidate, chord["notes"]) else 1
+                    options.append((candidate, weight))
+        
+        # Add large leap options (low probability)
+        # Only add if we haven't had a large leap recently (simplified version)
+        if random.random() < 0.15:  # 15% chance to consider large leaps
+            for leap in large_leap_options:
+                candidate = prev_note + leap
+                if self.lower_bound <= candidate <= self.upper_bound:
+                    if (candidate % 12) in scale:
+                        # Low weight for large leaps
+                        weight = 1 if self._is_chord_tone(candidate, chord["notes"]) else 0.5
+                        options.append((candidate, weight))
+        
+        # If no options found (rare), add the chord root in an appropriate octave
+        if not options:
+            root_note = chord["root"]
+            # Find the closest octave of the root to the previous note
+            octave = (prev_note // 12)
+            candidate = root_note + (octave * 12)
+            
+            # Adjust if outside range
+            if candidate < self.lower_bound:
+                candidate += 12
+            elif candidate > self.upper_bound:
+                candidate -= 12
+                
+            options.append((candidate, 5))
+        
+        return options
+    
+    def _choose_next_note(self, options):
+        """Choose the next note based on weighted options."""
+        notes, weights = zip(*options)
+        return random.choices(notes, weights=weights, k=1)[0]
+    
+    def _get_rhythmic_pattern(self, measure_duration):
+        """Get a rhythmic pattern that fits within the measure duration."""
+        # Choose a pattern that fits the measure
+        valid_patterns = []
+        for pattern in self.rhythmic_patterns:
+            if sum(pattern) <= measure_duration:
+                valid_patterns.append(pattern)
+        
+        if not valid_patterns:
+            # Fallback to simple pattern if none fit
+            return [1, 0, 1, 0, 1, 0]  # Simple pattern with rests
+        
+        return random.choice(valid_patterns)
+    
+    def generate_melody_for_chord(self, chord, measure_duration):
+        """
+        Generate a melodic line for a single chord.
+        
+        Args:
+            chord: Chord dictionary with root, type, notes, and voicing
+            measure_duration: Duration of the measure in quarter notes
+            
+        Returns:
+            List of (note, start_time, duration) tuples
+        """
+        melody_notes = []
+        
+        # Get the appropriate scale for this chord
+        scale = self._get_chord_scale(chord)
+        
+        # Start with the current position
+        current_note = self.current_position
+        
+        # Get a rhythmic pattern
+        rhythm = self._get_rhythmic_pattern(measure_duration)
+        
+        # Convert rhythm to absolute positions
+        current_time = 0
+        for note_duration in rhythm:
+            if note_duration > 0:  # This is a note, not a rest
+                # Get options for the next note
+                options = self._get_next_note_options(chord, current_note, scale)
+                
+                # Choose the next note
+                next_note = self._choose_next_note(options)
+                
+                # Add the note to the melody
+                melody_notes.append((next_note, current_time, note_duration))
+                
+                # Update current note
+                current_note = next_note
+            else:
+                # This is a rest, represented by a negative note value
+                melody_notes.append((-1, current_time, abs(note_duration)))
+            
+            # Update time position
+            current_time += abs(note_duration)
+        
+        # Update the current position for the next chord
+        self.current_position = current_note
+        
+        return melody_notes
 
 # Example usage:
 if __name__ == "__main__":
@@ -455,7 +701,7 @@ if __name__ == "__main__":
     
     try:
         # Store the progression
-        progression = []
+        chord_sequence = []
         
         for chord_num in range(16):
             chord = chord_gen.get_next_chord()
@@ -466,7 +712,7 @@ if __name__ == "__main__":
             print(f"Chord {chord_num+1}: {chord_name} ({function}) - Voicing: {', '.join(voicing)}")
             
             # Add to progression
-            progression.append(chord)
+            chord_sequence.append(chord)
         
         # Print final state
         print("\nFinal state:")
@@ -481,11 +727,14 @@ if __name__ == "__main__":
         
         # Create MIDI file with piano sound
         midi_file = chord_gen.create_midi_file(
-            progression, 
+            chord_sequence, 
             filename="chord_progression.mid", 
             tempo=80,
             instrument=0,  # Acoustic Grand Piano
-            volume=100
+            melody_instrument=73,  # Flute
+            volume=100,
+            melody_volume=100,
+            include_melody=True
         )
         
         # Attempt to play the MIDI file with the system's default player
@@ -495,7 +744,7 @@ if __name__ == "__main__":
                 subprocess.run(["open", midi_file], check=True)
             else:
                 print("Unsupported operating system. Please open the MIDI file manually.")
-        except Exception as e:
+        except (subprocess.SubprocessError, FileNotFoundError) as e:
             print(f"Could not open MIDI file automatically: {e}")
             print(f"Please open {midi_file} manually with your MIDI player.")
     
