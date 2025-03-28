@@ -20,6 +20,29 @@ except ImportError:
     subprocess.run([sys.executable, "-m", "pip", "install", "midiutil"], check=True)
     from midiutil.MidiFile import MIDIFile
 
+# ASCII art for program startup
+INFINITE_SPA_ASCII = """
+╔══════════════════════════════════════════════════════════════════════════════╗
+║           ^^                   @@@@@@@@@                                     ║
+║      ^^       ^^            @@@@@@@@@@@@@@@                                  ║
+║                           @@@@@@@@@@@@@@@@@@              ^^                 ║
+║                          @@@@@@@@@@@@@@@@@@@@                                ║
+║~~~~ ~~ ~~~~~ ~~~~~~~~ ~~ &&&&&&&&&&&&&&&&&&&& ~~~~~~~ ~~~~~~~~~~~ ~~~        ║
+║~         ~~   ~  ~       ~~~~~~~~~~~~~~~~~~~~ ~       ~~     ~~ ~            ║
+║  ~      ~~      ~~ ~~ ~~  ~~~~~~~~~~~~~ ~~~~  ~     ~~~    ~ ~~~  ~ ~~       ║
+║  ~  ~~     ~         ~      ~~~~~~  ~~ ~~~       ~~ ~ ~~  ~~ ~               ║
+║~  ~       ~ ~      ~           ~~ ~~~~~~  ~      ~~  ~             ~~        ║
+║      ~             ~        ~      ~      ~~   ~             ~               ║
+║                                                                              ║
+║                                                                              ║
+║        ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩                   ║
+║               ♫    I N F I N I T E    S P A    ♫                             ║
+║        ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩                   ║
+║                                                                              ║
+║          Procedural relaxation through harmonic progression                  ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+"""
+
 class ChordType(Enum):
     MAJOR = "major"
     MINOR = "minor"
@@ -512,7 +535,7 @@ class TymoczkoChordGenerator:
         with open(filename, "wb") as output_file:
             midi.writeFile(output_file)
         
-        print(f"MIDI file created: {filename} in {time_signature[0]}/{time_signature[1]} time")
+        # print(f"MIDI file created: {filename} in {time_signature[0]}/{time_signature[1]} time")
         
         # Try to open the MIDI file with the default player if requested
         if open_player:
@@ -608,17 +631,17 @@ class TymoczkoChordGenerator:
             return
             
         # Play the MIDI file directly using mido
-        print(f"Playing MIDI file through FluidSynth port: {fluidsynth_port}")
+        # print(f"Playing MIDI file through FluidSynth port: {fluidsynth_port}")
         try:
             mid = mido.MidiFile('chord_progression.mid')
             outport = mido.open_output(fluidsynth_port)
             
-            print("Starting playback...")
+            # print("Starting playback...")
             for msg in mid.play():
                 outport.send(msg)
                 
             outport.close()
-            print("Playback complete")
+            # print("Playback complete")
         except Exception as e:
             print(f"Error playing MIDI file: {e}")
 
@@ -909,6 +932,9 @@ class MelodyGenerator:
 
 # Example usage:
 if __name__ == "__main__":
+    # Print ASCII art
+    print(INFINITE_SPA_ASCII)
+    
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="Generate and play relaxing spa music")
     parser.add_argument("--infinite", action="store_true", help="Generate and play music infinitely")
@@ -934,13 +960,13 @@ if __name__ == "__main__":
         # print(chord_gen.get_current_state())
         
         # Try to play with FluidSynth if available
-        print("\nChecking for FluidSynth availability...")
+        # print("\nChecking for FluidSynth availability...")
         try:
             fluidsynth_port = chord_gen.find_fluidsynth_port()
             
             if fluidsynth_port:
-                print(f"FluidSynth found at port: {fluidsynth_port}")
-                print("Playing progression with FluidSynth...")
+                # print(f"FluidSynth found at port: {fluidsynth_port}")
+                # print("Playing progression with FluidSynth...")
                 # Create MIDI file without opening player
                 chord_gen.create_midi_file(progression, include_melody=True, open_player=False)
                 # Play with FluidSynth
@@ -975,7 +1001,7 @@ if __name__ == "__main__":
                 if not success:
                     print("FluidSynth not available for infinite mode. Exiting.")
                     break
-                print("\n=== Generating next progression... ===\n")
+                # print("\n=== Generating next progression... ===\n")
         except KeyboardInterrupt:
             print("\nInfinite mode stopped by user.")
     else:
