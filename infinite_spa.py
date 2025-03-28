@@ -55,6 +55,7 @@ FUNCTION_MAP = {
     
     # Dominant functions
     "V": {"root": 7, "type": ChordType.MAJOR},
+    "v": {"root": 7, "type": ChordType.MINOR},
     "V7": {"root": 7, "type": ChordType.DOMINANT7},
     "vii°": {"root": 11, "type": ChordType.DIMINISHED},
     "VII": {"root": 11, "type": ChordType.MAJOR},
@@ -382,8 +383,8 @@ class TymoczkoChordGenerator:
             "history": [(func, NOTE_NAMES[root], type.value) for func, root, type in self.history]
         }
     
-    def create_midi_file(self, progression, filename="chord_progression.mid", tempo=90, 
-                         instrument=0, melody_instrument=73, volume=100, melody_volume=100,
+    def create_midi_file(self, progression, filename="chord_progression.mid", tempo=70, 
+                         instrument=0, melody_instrument=0, volume=100, melody_volume=100,
                          time_signature=(3, 4), include_melody=True, open_player=True):
         """
         Create a MIDI file from a chord progression with optional melody.
@@ -435,12 +436,12 @@ class TymoczkoChordGenerator:
             random.seed(int(time.time()))
         
         # Add each chord to the MIDI file
-        for chord_idx, chord_item in enumerate(progression):
+        for _, chord in enumerate(progression):
             # Set chord instrument
             midi.addProgramChange(chord_track, 0, time_position, instrument)
             
             # Sort the notes from low to high for arpeggiation
-            sorted_notes = sorted(chord_item["voicing"])
+            sorted_notes = sorted(chord["voicing"])
             
             # Add each note in the chord as an arpeggiated eighth note
             current_position = time_position
@@ -461,11 +462,11 @@ class TymoczkoChordGenerator:
                 midi.addProgramChange(melody_track, 0, time_position, melody_instrument)
                 
                 # Add chord notes to the chord_item for melody generation
-                if "notes" not in chord_item:
-                    chord_item["notes"] = [note % 12 for note in sorted_notes]
+                if "notes" not in chord:
+                    chord["notes"] = [note % 12 for note in sorted_notes]
                 
                 # Generate melody for this chord
-                melody_notes = melody_gen.generate_melody_for_chord(chord_item, measure_duration)
+                melody_notes = melody_gen.generate_melody_for_chord(chord, measure_duration)
                 
                 # Add melody notes to the MIDI file
                 for note, start_time, duration in melody_notes:
@@ -551,7 +552,7 @@ class TymoczkoChordGenerator:
         for note in notes:
             outport.send(mido.Message('note_off', note=note, velocity=velocity))
     
-    def play_progression_with_fluidsynth(self, progression, tempo=90, instrument=0, 
+    def play_progression_with_fluidsynth(self, progression, tempo=70, instrument=0, 
                                          melody_instrument=73, volume=100, melody_volume=100,
                                          time_signature=(3, 4), include_melody=True):
         """
@@ -756,8 +757,6 @@ class MelodyGenerator:
     
     def _get_rhythmic_pattern(self, measure_duration):
         """Get a rhythmic pattern that fits within the measure."""
-        # Debug output
-        print(f"Measure duration: {measure_duration}")
         
         # Choose a pattern that fits the measure
         valid_patterns = []
@@ -765,16 +764,12 @@ class MelodyGenerator:
             pattern_duration = sum([abs(duration) for duration in pattern])
             if pattern_duration <= measure_duration:
                 valid_patterns.append(pattern)
-                
-        # Debug output
-        print(f"Found {len(valid_patterns)} valid patterns")
         
         if not valid_patterns:
             # Fallback to simple pattern if none fit
             return [1.0, -2.0]  # Quarter note, then rest
         
         selected_pattern = random.choice(valid_patterns)
-        print(f"Selected pattern: {selected_pattern}")
         return selected_pattern
     
     def generate_melody_for_chord(self, chord, measure_duration):
@@ -798,9 +793,6 @@ class MelodyGenerator:
         
         # Get a rhythmic pattern that fits within the measure
         rhythm = self._get_rhythmic_pattern(measure_duration)
-        
-        # Print the rhythm pattern for debugging
-        print(f"Rhythm pattern: {rhythm}")
         
         # Convert rhythm to absolute positions
         current_time = 0
@@ -845,16 +837,16 @@ if __name__ == "__main__":
     def generate_and_play_progression(open_player=not args.no_open):
         # Generate a progression of 16 chords
         progression = []
-        print("\nStarting in key: C minor\n")
-        print("Generating chord progression:")
-        print("--------------------------------------------------")
-        for i in range(16):
+        # print("\nStarting in key: C minor\n")
+        # print("Generating chord progression:")
+        # print("--------------------------------------------------")
+        for _ in range(16):
             chord = chord_gen.get_next_chord()
             progression.append(chord)
-            print(f"Chord {i+1}: {chord_gen.get_chord_name(chord)} - Voicing: {', '.join([NOTE_NAMES[note % 12] + str(note // 12) for note in chord['voicing']])}")
+        #     print(f"Chord {_+1}: {chord_gen.get_chord_name(chord)} - Voicing: {', '.join([NOTE_NAMES[note % 12] + str(note // 12) for note in chord['voicing']])}")
         
-        print("\nFinal state:")
-        print(chord_gen.get_current_state())
+        # print("\nFinal state:")
+        # print(chord_gen.get_current_state())
         
         # Try to play with FluidSynth if available
         print("\nChecking for FluidSynth availability...")
@@ -870,14 +862,14 @@ if __name__ == "__main__":
                 chord_gen.play_progression_with_fluidsynth(progression, include_melody=True)
                 return True
             else:
-                print("FluidSynth not found. To use FluidSynth for direct MIDI playback:")
-                print("1. Install FluidSynth: brew install fluidsynth (macOS) or apt-get install fluidsynth (Linux)")
-                print("2. Download a SoundFont file (e.g., FluidR3_GM.sf2)")
-                print("3. Run FluidSynth in a separate terminal:")
-                print("   - macOS: fluidsynth -a coreaudio -m coremidi /path/to/soundfont.sf2")
-                print("   - Linux: fluidsynth -a pulseaudio -m alsa_seq /path/to/soundfont.sf2")
-                print("   - Windows: fluidsynth -a dsound -m winmidi /path/to/soundfont.sf2")
-                print("4. Run this script again")
+                # print("FluidSynth not found. To use FluidSynth for direct MIDI playback:")
+                # print("1. Install FluidSynth: brew install fluidsynth (macOS) or apt-get install fluidsynth (Linux)")
+                # print("2. Download a SoundFont file (e.g., FluidR3_GM.sf2)")
+                # print("3. Run FluidSynth in a separate terminal:")
+                # print("   - macOS: fluidsynth -a coreaudio -m coremidi /path/to/soundfont.sf2")
+                # print("   - Linux: fluidsynth -a pulseaudio -m alsa_seq /path/to/soundfont.sf2")
+                # print("   - Windows: fluidsynth -a dsound -m winmidi /path/to/soundfont.sf2")
+                # print("4. Run this script again")
                 # Create MIDI file and open player since FluidSynth is not available
                 chord_gen.create_midi_file(progression, include_melody=True, open_player=open_player)
                 return False
