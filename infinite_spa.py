@@ -384,7 +384,7 @@ class TymoczkoChordGenerator:
         }
     
     def create_midi_file(self, progression, filename="chord_progression.mid", tempo=70, 
-                         instrument=0, melody_instrument=0, volume=100, melody_volume=100,
+                         instrument=8, melody_instrument=11, volume=80, melody_volume=90,
                          time_signature=(3, 4), include_melody=True, open_player=True):
         """
         Create a MIDI file from a chord progression with optional melody.
@@ -408,6 +408,10 @@ class TymoczkoChordGenerator:
         # Track numbers
         chord_track = 0
         melody_track = 1
+        
+        # Channel numbers - use different channels for different instruments
+        chord_channel = 0
+        melody_channel = 1
         
         # Initial time position
         time_position = 0
@@ -437,8 +441,8 @@ class TymoczkoChordGenerator:
         
         # Add each chord to the MIDI file
         for _, chord in enumerate(progression):
-            # Set chord instrument
-            midi.addProgramChange(chord_track, 0, time_position, instrument)
+            # Set chord instrument on channel 0
+            midi.addProgramChange(chord_track, chord_channel, time_position, instrument)
             
             # Sort the notes from low to high for arpeggiation
             sorted_notes = sorted(chord["voicing"])
@@ -447,7 +451,7 @@ class TymoczkoChordGenerator:
             current_position = time_position
             for note in sorted_notes:
                 # Add note (track, channel, pitch, time, duration, volume)
-                midi.addNote(chord_track, 0, note, current_position, eighth_note_duration, volume)
+                midi.addNote(chord_track, chord_channel, note, current_position, eighth_note_duration, volume)
                 current_position += eighth_note_duration
             
             # Calculate remaining time in the measure for rest
@@ -458,8 +462,8 @@ class TymoczkoChordGenerator:
             
             # Generate and add melody if requested
             if include_melody:
-                # Set melody instrument
-                midi.addProgramChange(melody_track, 0, time_position, melody_instrument)
+                # Set melody instrument on channel 1
+                midi.addProgramChange(melody_track, melody_channel, time_position, melody_instrument)
                 
                 # Add chord notes to the chord_item for melody generation
                 if "notes" not in chord:
@@ -473,7 +477,7 @@ class TymoczkoChordGenerator:
                     if note > 0:  # Skip rests (represented by note <= 0)
                         note_position = time_position + start_time
                         # Convert duration from eighth notes to quarter notes if needed
-                        midi.addNote(melody_track, 0, note, note_position, duration, melody_volume)
+                        midi.addNote(melody_track, melody_channel, note, note_position, duration, melody_volume)
             
             # Move to next measure
             time_position += measure_duration
@@ -517,7 +521,7 @@ class TymoczkoChordGenerator:
             print(f"Error detecting MIDI ports: {e}")
             return None
     
-    def play_note(self, outport, midi_note, duration=0.5, velocity=100):
+    def play_note(self, outport, midi_note, duration=0.5, velocity=50):
         """
         Play a MIDI note with the specified duration and velocity.
 
@@ -531,7 +535,7 @@ class TymoczkoChordGenerator:
         time.sleep(duration)
         outport.send(mido.Message('note_off', note=midi_note, velocity=velocity))
     
-    def play_chord(self, outport, notes, duration=0.5, velocity=100):
+    def play_chord(self, outport, notes, duration=0.5, velocity=50):
         """
         Play a chord with the specified duration and velocity.
 
@@ -552,7 +556,7 @@ class TymoczkoChordGenerator:
         for note in notes:
             outport.send(mido.Message('note_off', note=note, velocity=velocity))
     
-    def play_progression_with_fluidsynth(self, progression, tempo=70, instrument=0, 
+    def play_progression_with_fluidsynth(self, progression, tempo=70, instrument=11, 
                                          melody_instrument=73, volume=70, melody_volume=100,
                                          time_signature=(3, 4), include_melody=True):
         """

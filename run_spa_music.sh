@@ -40,9 +40,9 @@ else
     echo "Place an MP3 file at this location to enable ambient sounds."
 fi
 
-# Start FluidSynth in a new terminal window with reverb settings
-echo "Starting FluidSynth in a new terminal window with reverb..."
-osascript -e 'tell application "Terminal" to do script "fluidsynth -a coreaudio -m coremidi -r 44100 -R 1 -C 1 -g 1.0 -o synth.reverb.active=yes -o synth.reverb.room-size=0.8 -o synth.reverb.width=0.9 -o synth.reverb.damp=0.4 /Users/wdickerson/Repos/scratchpad/gs/gs.sf2"'
+# Start FluidSynth in a new terminal window with enhanced reverb and ethereal settings
+echo "Starting FluidSynth in a new terminal window with enhanced reverb..."
+osascript -e 'tell application "Terminal" to do script "fluidsynth -a coreaudio -m coremidi -r 44100 -R 1 -C 1 -g 1.0 -o synth.reverb.active=yes -o synth.reverb.room-size=0.95 -o synth.reverb.width=1.0 -o synth.reverb.damp=0.3 -o synth.reverb.level=0.9 -o synth.chorus.active=yes -o synth.chorus.depth=8 -o synth.chorus.speed=0.4 -o synth.chorus.level=0.6 -o synth.gain=0.9 /Users/wdickerson/Repos/scratchpad/gs/gs.sf2"'
 
 # Start ambient sound loop if file exists
 if [ "$USE_AMBIENT" = true ]; then
