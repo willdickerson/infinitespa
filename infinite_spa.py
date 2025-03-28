@@ -7,6 +7,7 @@ import time
 from enum import Enum
 from midiutil import MIDIFile
 import mido  # Add mido for direct MIDI playback
+import argparse
 
 class ChordType(Enum):
     MAJOR = "major"
@@ -831,47 +832,75 @@ class MelodyGenerator:
 
 # Example usage:
 if __name__ == "__main__":
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Generate and play relaxing spa music")
+    parser.add_argument("--infinite", action="store_true", help="Generate and play music infinitely")
+    parser.add_argument("--no-open", action="store_true", help="Don't open the MIDI player")
+    args = parser.parse_args()
+    
     # Create a chord generator in C minor
     chord_gen = TymoczkoChordGenerator(key=0)
     
-    # Generate a progression of 16 chords
-    progression = []
-    print("\nStarting in key: C minor\n")
-    print("Generating chord progression:")
-    print("--------------------------------------------------")
-    for i in range(16):
-        chord = chord_gen.get_next_chord()
-        progression.append(chord)
-        print(f"Chord {i+1}: {chord_gen.get_chord_name(chord)} - Voicing: {', '.join([NOTE_NAMES[note % 12] + str(note // 12) for note in chord['voicing']])}")
-    
-    print("\nFinal state:")
-    print(chord_gen.get_current_state())
-    
-    # Try to play with FluidSynth if available
-    print("\nChecking for FluidSynth availability...")
-    try:
-        fluidsynth_port = chord_gen.find_fluidsynth_port()
+    # Function to generate and play a progression
+    def generate_and_play_progression(open_player=not args.no_open):
+        # Generate a progression of 16 chords
+        progression = []
+        print("\nStarting in key: C minor\n")
+        print("Generating chord progression:")
+        print("--------------------------------------------------")
+        for i in range(16):
+            chord = chord_gen.get_next_chord()
+            progression.append(chord)
+            print(f"Chord {i+1}: {chord_gen.get_chord_name(chord)} - Voicing: {', '.join([NOTE_NAMES[note % 12] + str(note // 12) for note in chord['voicing']])}")
         
-        if fluidsynth_port:
-            print(f"FluidSynth found at port: {fluidsynth_port}")
-            print("Playing progression with FluidSynth...")
-            # Create MIDI file without opening player
-            chord_gen.create_midi_file(progression, include_melody=True, open_player=False)
-            # Play with FluidSynth
-            chord_gen.play_progression_with_fluidsynth(progression, include_melody=True)
-        else:
-            print("FluidSynth not found. To use FluidSynth for direct MIDI playback:")
-            print("1. Install FluidSynth: brew install fluidsynth (macOS) or apt-get install fluidsynth (Linux)")
-            print("2. Download a SoundFont file (e.g., FluidR3_GM.sf2)")
-            print("3. Run FluidSynth in a separate terminal:")
-            print("   - macOS: fluidsynth -a coreaudio -m coremidi /path/to/soundfont.sf2")
-            print("   - Linux: fluidsynth -a pulseaudio -m alsa_seq /path/to/soundfont.sf2")
-            print("   - Windows: fluidsynth -a dsound -m winmidi /path/to/soundfont.sf2")
-            print("4. Run this script again")
-            # Create MIDI file and open player since FluidSynth is not available
-            chord_gen.create_midi_file(progression, include_melody=True, open_player=False)
-    except Exception as e:
-        print(f"Error checking for FluidSynth: {e}")
-        print("MIDI file was created successfully and can be played with any MIDI player.")
-        # Create MIDI file and open player as fallback
-        chord_gen.create_midi_file(progression, include_melody=True, open_player=False)
+        print("\nFinal state:")
+        print(chord_gen.get_current_state())
+        
+        # Try to play with FluidSynth if available
+        print("\nChecking for FluidSynth availability...")
+        try:
+            fluidsynth_port = chord_gen.find_fluidsynth_port()
+            
+            if fluidsynth_port:
+                print(f"FluidSynth found at port: {fluidsynth_port}")
+                print("Playing progression with FluidSynth...")
+                # Create MIDI file without opening player
+                chord_gen.create_midi_file(progression, include_melody=True, open_player=False)
+                # Play with FluidSynth
+                chord_gen.play_progression_with_fluidsynth(progression, include_melody=True)
+                return True
+            else:
+                print("FluidSynth not found. To use FluidSynth for direct MIDI playback:")
+                print("1. Install FluidSynth: brew install fluidsynth (macOS) or apt-get install fluidsynth (Linux)")
+                print("2. Download a SoundFont file (e.g., FluidR3_GM.sf2)")
+                print("3. Run FluidSynth in a separate terminal:")
+                print("   - macOS: fluidsynth -a coreaudio -m coremidi /path/to/soundfont.sf2")
+                print("   - Linux: fluidsynth -a pulseaudio -m alsa_seq /path/to/soundfont.sf2")
+                print("   - Windows: fluidsynth -a dsound -m winmidi /path/to/soundfont.sf2")
+                print("4. Run this script again")
+                # Create MIDI file and open player since FluidSynth is not available
+                chord_gen.create_midi_file(progression, include_melody=True, open_player=open_player)
+                return False
+        except Exception as e:
+            print(f"Error checking for FluidSynth: {e}")
+            print("MIDI file was created successfully and can be played with any MIDI player.")
+            # Create MIDI file and open player as fallback
+            chord_gen.create_midi_file(progression, include_melody=True, open_player=open_player)
+            return False
+    
+    # Run in infinite mode if requested
+    if args.infinite:
+        print("=== INFINITE MODE ACTIVATED ===")
+        print("Press Ctrl+C to stop the infinite music generation")
+        try:
+            while True:
+                success = generate_and_play_progression(open_player=False)
+                if not success:
+                    print("FluidSynth not available for infinite mode. Exiting.")
+                    break
+                print("\n=== Generating next progression... ===\n")
+        except KeyboardInterrupt:
+            print("\nInfinite mode stopped by user.")
+    else:
+        # Generate and play a single progression
+        generate_and_play_progression()

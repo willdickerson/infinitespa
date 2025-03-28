@@ -19,7 +19,14 @@ sleep 3
 echo "Running Infinite Spa Music Generator..."
 cd "$(dirname "$0")"
 source venv/bin/activate
-python infinite_spa.py
+
+# Check for infinite mode flag
+if [ "$1" == "--infinite" ]; then
+  echo "Running in infinite mode. Press Ctrl+C to stop."
+  python infinite_spa.py --infinite --no-open
+else
+  python infinite_spa.py --no-open
+fi
 
 echo ""
 echo "FluidSynth is still running in a separate terminal window."
