@@ -672,6 +672,31 @@ class MelodyGenerator:
         """Check if a note is a chord tone."""
         return (note % 12) in chord_notes
     
+    def _is_dissonant_with_chord(self, note, chord_voicing):
+        """
+        Check if a note creates dissonant intervals with any chord tone.
+        Dissonant intervals are minor 2nds (1 semitone), major 7ths (11 semitones),
+        and tritones (6 semitones).
+        """
+        note_pitch_class = note % 12
+        
+        for chord_note in chord_voicing:
+            chord_pitch_class = chord_note % 12
+            
+            # Calculate the smallest interval between the two pitch classes
+            interval = min(
+                (note_pitch_class - chord_pitch_class) % 12,
+                (chord_pitch_class - note_pitch_class) % 12
+            )
+            
+            # Check for dissonant intervals
+            if interval == 1 or interval == 11:  # Minor 2nd or Major 7th
+                return True
+            if interval == 6:  # Tritone
+                return True
+                
+        return False
+    
     def _get_chord_scale(self, chord):
         """Get appropriate scale for a given chord."""
         # Extract chord information
@@ -703,12 +728,19 @@ class MelodyGenerator:
         leap_options = [-5, -4, -3, 3, 4, 5]  # Medium leaps
         large_leap_options = [-12, -8, -7, 7, 8, 12]  # Large leaps (use sparingly)
         
+        # Get chord voicing for dissonance checking
+        chord_voicing = chord["voicing"]
+        
         # Add step options (higher probability)
         for step in step_options:
             candidate = prev_note + step
             if self.lower_bound <= candidate <= self.upper_bound:
                 # Check if note is in scale
                 if (candidate % 12) in scale:
+                    # Skip if the note creates dissonant intervals with chord tones
+                    if self._is_dissonant_with_chord(candidate, chord_voicing):
+                        continue
+                        
                     # Higher weight for chord tones
                     weight = 5 if self._is_chord_tone(candidate, chord["notes"]) else 3
                     options.append((candidate, weight))
@@ -718,6 +750,10 @@ class MelodyGenerator:
             candidate = prev_note + leap
             if self.lower_bound <= candidate <= self.upper_bound:
                 if (candidate % 12) in scale:
+                    # Skip if the note creates dissonant intervals with chord tones
+                    if self._is_dissonant_with_chord(candidate, chord_voicing):
+                        continue
+                        
                     # Medium weight for leaps
                     weight = 3 if self._is_chord_tone(candidate, chord["notes"]) else 1
                     options.append((candidate, weight))
@@ -729,6 +765,10 @@ class MelodyGenerator:
                 candidate = prev_note + leap
                 if self.lower_bound <= candidate <= self.upper_bound:
                     if (candidate % 12) in scale:
+                        # Skip if the note creates dissonant intervals with chord tones
+                        if self._is_dissonant_with_chord(candidate, chord_voicing):
+                            continue
+                            
                         # Low weight for large leaps
                         weight = 1 if self._is_chord_tone(candidate, chord["notes"]) else 0.5
                         options.append((candidate, weight))
