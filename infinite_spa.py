@@ -1,9 +1,11 @@
 import random
-import numpy as np  # Used for mathematical operations
-from enum import Enum
+import numpy as np
 import os
 import subprocess
-from midiutil import MIDIFile
+import sys
+from midiutil.MidiFile import MIDIFile
+import time
+from enum import Enum
 
 class ChordType(Enum):
     MAJOR = "major"
@@ -426,9 +428,11 @@ class TymoczkoChordGenerator:
         # Create a melody generator if needed
         if include_melody:
             melody_gen = MelodyGenerator(key=self.key)
+            # Set a random seed to ensure varied patterns
+            random.seed(int(time.time()))
         
         # Add each chord to the MIDI file
-        for chord_item in progression:
+        for chord_idx, chord_item in enumerate(progression):
             # Set chord instrument
             midi.addProgramChange(chord_track, 0, time_position, instrument)
             
@@ -445,6 +449,7 @@ class TymoczkoChordGenerator:
             # Calculate remaining time in the measure for rest
             # Each chord takes len(sorted_notes) eighth notes
             notes_duration = len(sorted_notes) * eighth_note_duration
+            # Using rest_duration to calculate when the next chord should start
             rest_duration = measure_duration - notes_duration
             
             # Generate and add melody if requested
@@ -463,6 +468,7 @@ class TymoczkoChordGenerator:
                 for note, start_time, duration in melody_notes:
                     if note > 0:  # Skip rests (represented by note <= 0)
                         note_position = time_position + start_time
+                        # Convert duration from eighth notes to quarter notes if needed
                         midi.addNote(melody_track, 0, note, note_position, duration, melody_volume)
             
             # Move to next measure
@@ -514,19 +520,33 @@ class MelodyGenerator:
         # Initialize the current melodic position
         self.current_position = 72  # C5
         
-        # Rhythmic patterns (in eighth notes)
-        # Note: 0 represents a rest
+        # Rhythmic patterns for spa music (in quarter notes)
+        # Note: Negative values represent rests
+        # 1.0 = quarter note, 2.0 = half note, 3.0 = dotted half note
+        # All patterns must sum to 3.0 or less (for 3/4 time)
         self.rhythmic_patterns = [
-            [1, 1, 0, 1, 0, 1],         # Eighth, eighth, rest, eighth, rest, eighth
-            [2, 0, 1, 0, 1],            # Quarter, rest, eighth, rest, eighth
-            [1, 0, 1, 0, 2],            # Eighth, rest, eighth, rest, quarter
-            [2, 0, 2],                  # Quarter, rest, quarter
-            [1, 0.5, 0.5, 0, 1, 0, 1],  # Eighth, two sixteenths, rest, eighth, rest, eighth
-            [3, 0, 1],                  # Dotted quarter, rest, eighth
-            [1, 0, 3],                  # Eighth, rest, dotted quarter
-            [2, 0, 0, 2],               # Quarter, two rests, quarter
-            [0, 1, 1, 0, 1, 0, 1],      # Rest, eighth, eighth, rest, eighth, rest, eighth
-            [0, 0, 4],                  # Two rests, half note
+            # Sparse patterns with quarter notes and rests
+            [1.0, -1.0, 1.0],                # Quarter, rest, quarter
+            [1.0, -2.0],                     # Quarter, half rest
+            [-1.0, 1.0, -1.0],               # Rest, quarter, rest
+            [-1.0, 2.0],                     # Rest, half note
+            [2.0, -1.0],                     # Half, rest
+            
+            # Single longer notes
+            [3.0],                           # Dotted half (whole measure)
+            [2.0, 1.0],                      # Half, quarter
+            [1.0, 2.0],                      # Quarter, half
+            
+            # More sparse patterns
+            [1.0, -1.0, -1.0],               # Quarter, two rests
+            [-1.0, 1.0, 1.0],                # Rest, two quarters
+            [1.0, 1.0, -1.0],                # Two quarters, rest
+            [-2.0, 1.0],                     # Half rest, quarter
+            
+            # Very sparse patterns (mostly rests)
+            [-2.0, -1.0],                    # Silence for the whole measure
+            [-1.0, -1.0, 1.0],               # Two rests, quarter
+            [1.0, -1.0, -1.0]                # Quarter, two rests
         ]
         
         if seed is not None:
@@ -625,18 +645,27 @@ class MelodyGenerator:
         return random.choices(notes, weights=weights, k=1)[0]
     
     def _get_rhythmic_pattern(self, measure_duration):
-        """Get a rhythmic pattern that fits within the measure duration."""
+        """Get a rhythmic pattern that fits within the measure."""
+        # Debug output
+        print(f"Measure duration: {measure_duration}")
+        
         # Choose a pattern that fits the measure
         valid_patterns = []
         for pattern in self.rhythmic_patterns:
-            if sum(pattern) <= measure_duration:
+            pattern_duration = sum([abs(duration) for duration in pattern])
+            if pattern_duration <= measure_duration:
                 valid_patterns.append(pattern)
+                
+        # Debug output
+        print(f"Found {len(valid_patterns)} valid patterns")
         
         if not valid_patterns:
             # Fallback to simple pattern if none fit
-            return [1, 0, 1, 0, 1, 0]  # Simple pattern with rests
+            return [1.0, -2.0]  # Quarter note, then rest
         
-        return random.choice(valid_patterns)
+        selected_pattern = random.choice(valid_patterns)
+        print(f"Selected pattern: {selected_pattern}")
+        return selected_pattern
     
     def generate_melody_for_chord(self, chord, measure_duration):
         """
@@ -657,8 +686,11 @@ class MelodyGenerator:
         # Start with the current position
         current_note = self.current_position
         
-        # Get a rhythmic pattern
+        # Get a rhythmic pattern that fits within the measure
         rhythm = self._get_rhythmic_pattern(measure_duration)
+        
+        # Print the rhythm pattern for debugging
+        print(f"Rhythm pattern: {rhythm}")
         
         # Convert rhythm to absolute positions
         current_time = 0
@@ -671,15 +703,16 @@ class MelodyGenerator:
                 next_note = self._choose_next_note(options)
                 
                 # Add the note to the melody
-                melody_notes.append((next_note, current_time, note_duration))
+                melody_notes.append((next_note, current_time, abs(note_duration)))
                 
                 # Update current note
                 current_note = next_note
             else:
-                # This is a rest, represented by a negative note value
-                melody_notes.append((-1, current_time, abs(note_duration)))
+                # This is a rest, represented by a negative duration
+                # We don't add anything to the MIDI file for rests
+                pass
             
-            # Update time position
+            # Update time position (use absolute value for rests which have negative durations)
             current_time += abs(note_duration)
         
         # Update the current position for the next chord
@@ -707,9 +740,8 @@ if __name__ == "__main__":
             chord = chord_gen.get_next_chord()
             chord_name = chord_gen.get_chord_name()
             function = chord["function"]
-            voicing = [f"{NOTE_NAMES[n%12]}{n//12-1}" for n in chord["voicing"]]
-            
-            print(f"Chord {chord_num+1}: {chord_name} ({function}) - Voicing: {', '.join(voicing)}")
+            voicing_str = ", ".join([NOTE_NAMES[n%12] + str(n//12-1) for n in chord["voicing"]])
+            print(f"Chord {chord_num+1}: {chord_name} ({function}) - Voicing: {voicing_str}")
             
             # Add to progression
             chord_sequence.append(chord)
