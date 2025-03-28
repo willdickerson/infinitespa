@@ -1,13 +1,24 @@
 import random
-import numpy as np
 import os
 import subprocess
 import sys
 import time
 from enum import Enum
-from midiutil import MIDIFile
-import mido  # Add mido for direct MIDI playback
+import mido  # For direct MIDI playback
 import argparse
+try:
+    import numpy as np
+except ImportError:
+    print("Warning: numpy not found. Installing required packages...")
+    subprocess.run([sys.executable, "-m", "pip", "install", "numpy"], check=True)
+    import numpy as np
+
+try:
+    from midiutil.MidiFile import MIDIFile
+except ImportError:
+    print("Warning: midiutil not found. Installing required packages...")
+    subprocess.run([sys.executable, "-m", "pip", "install", "midiutil"], check=True)
+    from midiutil.MidiFile import MIDIFile
 
 class ChordType(Enum):
     MAJOR = "major"
@@ -52,6 +63,7 @@ FUNCTION_MAP = {
     "iv": {"root": 5, "type": ChordType.MINOR},
     "II": {"root": 2, "type": ChordType.MAJOR},
     "ii": {"root": 2, "type": ChordType.MINOR},
+    "ii°": {"root": 2, "type": ChordType.DIMINISHED},
     
     # Dominant functions
     "V": {"root": 7, "type": ChordType.MAJOR},
@@ -73,6 +85,7 @@ VOICE_LEADING_GRAPH = {
     "IV": ["IV", "ii", "V", "V7", "vii°", "I", "vi", "iii"],
     "iv": ["iv", "ii", "V", "V7", "vii°", "i", "VI", "III"],
     "ii": ["ii", "V", "V7", "vii°", "I", "vi", "IV", "iii"],
+    "ii°": ["ii°", "V", "V7", "vii°", "i", "VI", "III", "iv"],
     
     # Dominant functions typically resolve to tonic
     "V": ["V", "V7", "I", "i", "vi", "iii", "IV", "ii"],
@@ -84,6 +97,7 @@ VOICE_LEADING_GRAPH = {
     "III": ["III", "i", "VI", "iv", "V", "VII", "v", "ii°"],
     "VI": ["VI", "i", "III", "iv", "ii", "V", "VII"],
     "II": ["II", "V", "V7", "I", "vi", "IV", "vii°"],
+    "v": ["v", "i", "VI", "III", "iv", "ii°", "VII"],
 }
 
 # Voice-leading weights based on Tymoczko's principles (smaller = more preferred)
@@ -510,7 +524,7 @@ class TymoczkoChordGenerator:
                     os.startfile(filename)
                 else:  # Linux
                     subprocess.run(["xdg-open", filename], check=True)
-            except Exception as e:
+            except (subprocess.SubprocessError, FileNotFoundError, PermissionError) as e:
                 print(f"Error opening MIDI file: {e}")
             
     def find_fluidsynth_port(self):
@@ -866,6 +880,7 @@ class MelodyGenerator:
         
         # Convert rhythm to absolute positions
         current_time = 0
+        
         for note_duration in rhythm:
             if note_duration > 0:  # This is a note, not a rest
                 # Get options for the next note
