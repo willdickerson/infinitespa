@@ -29,7 +29,7 @@ osascript -e 'tell application "Terminal" to close (every window whose name cont
 sleep 1
 
 # Check if ambient sound file exists
-AMBIENT_SOUND="ambient_sounds/babbling-brook.mp3"
+AMBIENT_SOUND="infinite_spa/ambient_sounds/babbling-brook.mp3"
 USE_AMBIENT=false
 
 if [ -f "$AMBIENT_SOUND" ]; then
@@ -40,8 +40,8 @@ else
     echo "Place an MP3 file at this location to enable ambient sounds."
 fi
 
-# Start FluidSynth in a new terminal window with enhanced reverb and ethereal settings
-echo "Starting FluidSynth in a new terminal window with enhanced reverb..."
+# Start FluidSynth in a new terminal window
+echo "Starting FluidSynth in a new terminal window..."
 osascript -e 'tell application "Terminal" to do script "fluidsynth -a coreaudio -m coremidi -r 44100 -R 1 -C 1 -g 1.0 -o synth.reverb.active=yes -o synth.reverb.room-size=0.95 -o synth.reverb.width=1.0 -o synth.reverb.damp=0.3 -o synth.reverb.level=0.9 -o synth.chorus.active=yes -o synth.chorus.depth=8 -o synth.chorus.speed=0.4 -o synth.chorus.level=0.6 -o synth.gain=0.9 /Users/wdickerson/Repos/scratchpad/gs/gs.sf2"'
 
 # Start ambient sound loop if file exists
@@ -65,9 +65,9 @@ if [ "$1" == "--infinite" ]; then
   echo "Running in infinite mode. Press Ctrl+C to stop."
   echo "NOTE: Press Ctrl+C to stop all audio playback including the ambient sound."
   echo "If audio persists, run ./stop_spa_music.sh"
-  python infinite_spa.py --infinite --no-open
+  python run_infinite_spa.py --infinite --no-open
 else
-  python infinite_spa.py --no-open
+  python run_infinite_spa.py --no-open
 fi
 
 # Run cleanup at the end of the script

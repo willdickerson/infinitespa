@@ -46,7 +46,7 @@ INFINITE_SPA_ASCII = """
 ║               ♫    I N F I N I T E    S P A    ♫                             ║
 ║        ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩ ♩                   ║
 ║                                                                              ║
-║          Procedural relaxation through harmonic progression                  ║
+║                       Procedural relaxation                                  ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
 

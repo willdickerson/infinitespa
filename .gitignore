@@ -31,5 +31,10 @@ build/
 # MIDI files
 *.mid
 *.midi
+# Generated MIDI files
+*.mid
 
+# macOS system files
 .DS_Store
+.AppleDouble
+.LSOverride
