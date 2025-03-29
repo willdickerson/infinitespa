@@ -11,7 +11,7 @@ try:
 except ImportError:
     pass  # Dependencies will be checked in main.py
 
-from infinite_spa.harmony import (
+from infinitespa.harmony import (
     ChordType, NOTE_NAMES, CHORD_STRUCTURES, FUNCTION_MAP, 
     VOICE_LEADING_GRAPH, VOICE_LEADING_WEIGHTS, get_chord_name
 )

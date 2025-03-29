@@ -6,7 +6,7 @@ that complement chord progressions using voice-leading principles.
 """
 
 import random
-from infinite_spa.harmony import ChordType
+from infinitespa.harmony import ChordType
 
 class MelodyGenerator:
     """

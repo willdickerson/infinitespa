@@ -29,7 +29,7 @@ osascript -e 'tell application "Terminal" to close (every window whose name cont
 sleep 1
 
 # Check if ambient sound file exists
-AMBIENT_SOUND="infinite_spa/ambient_sounds/babbling-brook.mp3"
+AMBIENT_SOUND="infinitespa/ambient_sounds/babbling-brook.mp3"
 USE_AMBIENT=false
 
 if [ -f "$AMBIENT_SOUND" ]; then
@@ -65,9 +65,9 @@ if [ "$1" == "--infinite" ]; then
   echo "Running in infinite mode. Press Ctrl+C to stop."
   echo "NOTE: Press Ctrl+C to stop all audio playback including the ambient sound."
   echo "If audio persists, run ./stop_spa_music.sh"
-  python run_infinite_spa.py --infinite --no-open
+  ./venv/bin/python run_infinitespa.py --infinite --no-open
 else
-  python run_infinite_spa.py --no-open
+  ./venv/bin/python run_infinitespa.py --no-open
 fi
 
 # Run cleanup at the end of the script

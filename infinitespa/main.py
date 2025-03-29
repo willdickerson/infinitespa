@@ -12,10 +12,10 @@ try:
 except ImportError:
     pass  # Dependencies will be checked in check_dependencies()
 
-from infinite_spa.generator import VoiceLeadingChordGenerator
-from infinite_spa.melody import MelodyGenerator
-from infinite_spa.midi_utils import create_midi_file, play_progression_with_fluidsynth
-from infinite_spa.harmony import NOTE_NAMES
+from infinitespa.generator import VoiceLeadingChordGenerator
+from infinitespa.melody import MelodyGenerator
+from infinitespa.midi_utils import create_midi_file, play_progression_with_fluidsynth
+from infinitespa.harmony import NOTE_NAMES
 
 # ASCII art for the Infinite Spa Music Generator
 INFINITE_SPA_ASCII = """
