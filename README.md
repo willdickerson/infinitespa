@@ -1,6 +1,19 @@
 # Infinite Spa Music Generator
 
-A procedural music generator that creates relaxing spa music with harmonically sensible chord progressions and melodies using voice-leading principles and functional harmony rules.
+![Infinite Spa Logo](logo.png)
+
+A procedural music generator that creates relaxing spa music with harmonically sensible chord progressions and melodies. **Experience infinite bliss and relaxation directly in your terminal** with soothing sounds and ambient backgrounds.
+
+## Overview
+
+The Infinite Spa Music Generator provides a complete relaxation experience by combining:
+
+- Procedurally generated music with smooth voice-leading chord progressions
+- Complementary melodic lines that enhance the relaxation experience
+- Optional ambient nature sounds for a fully immersive environment
+- FluidSynth integration for high-quality audio playback
+
+Simply run the provided shell script and transform your workspace into a tranquil spa environment while you work, read, or meditate.
 
 ## Features
 
@@ -13,6 +26,7 @@ A procedural music generator that creates relaxing spa music with harmonically s
 - Supports MIDI file creation and playback
 - FluidSynth integration for real-time audio playback
 - Command-line interface with various options
+- Shell scripts for easy startup and shutdown
 
 ## Package Structure
 
@@ -53,6 +67,24 @@ The codebase is organized into the following modules:
    - Place the downloaded .sf2 file in a location referenced by your `run_spa_music.sh` script
 
 ## Usage
+
+### Quick Start with Shell Scripts
+
+The easiest way to enjoy the Infinite Spa experience is using the provided shell scripts:
+
+1. Start the spa music and ambient sounds:
+   ```
+   ./run_spa_music.sh
+   ```
+   This will start FluidSynth, play ambient sounds (if available), and generate infinite relaxing music.
+
+2. To stop all audio processes:
+   ```
+   ./stop_spa_music.sh
+   ```
+   This will cleanly terminate all audio processes and close any related terminal windows.
+
+### Running the Python Script Directly
 
 Run the generator with default settings:
 

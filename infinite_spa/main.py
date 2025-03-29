@@ -125,13 +125,6 @@ def generate_and_play_progression(key=None, num_chords=16, tempo=70,
     if key is None:
         key = random.randint(0, 11)
     
-    # Print information about the generation
-    print(f"Generating in key of {NOTE_NAMES[key]}")
-    print(f"Number of chords: {num_chords}")
-    print(f"Tempo: {tempo} BPM")
-    print(f"Chord instrument: {instrument}")
-    print(f"Melody instrument: {melody_instrument}")
-    
     try:
         # Create chord generator
         chord_generator = VoiceLeadingChordGenerator(key=key, seed=seed)
