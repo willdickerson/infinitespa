@@ -1,3 +1,10 @@
+"""
+VoiceLeadingChordGenerator
+
+Generates harmonically sensible chord progressions and melodies 
+using voice-leading principles and functional harmony rules.
+"""
+
 import random
 import os
 import subprocess
@@ -70,7 +77,7 @@ CHORD_STRUCTURES = {
     ChordType.DIMINISHED7: [0, 3, 6, 9],   # root, minor third, diminished fifth, diminished seventh
 }
 
-# Functional harmonic relationships - based on Tymoczko's theories
+# Functional harmonic relationships
 FUNCTION_MAP = {
     # Standard functional relationships in Western harmony
     # Tonic functions
@@ -96,7 +103,7 @@ FUNCTION_MAP = {
     "VII": {"root": 11, "type": ChordType.MAJOR},
 }
 
-# Tymoczko-inspired voice-leading graph
+# Voice-leading graph
 VOICE_LEADING_GRAPH = {
     # Tonic functions can move to subdominant or dominant
     "I": ["I", "iii", "vi", "IV", "ii", "V", "V7", "vii°"],
@@ -123,7 +130,7 @@ VOICE_LEADING_GRAPH = {
     "v": ["v", "i", "VI", "III", "iv", "ii°", "VII"],
 }
 
-# Voice-leading weights based on Tymoczko's principles (smaller = more preferred)
+# Voice-leading weights (smaller = more preferred)
 VOICE_LEADING_WEIGHTS = {
     # Stronger tendencies
     ("V", "I"): 1,
@@ -143,7 +150,14 @@ VOICE_LEADING_WEIGHTS = {
     "default": 3
 }
 
-class TymoczkoChordGenerator:
+class VoiceLeadingChordGenerator:
+    """
+    Generate a chord progression with voice-leading constraints.
+    
+    Args:
+        key: Integer representing the key (0=C, 1=C#, etc.)
+        seed: Random seed for reproducibility
+    """
     def __init__(self, key=0, seed=None):
         """
         Initialize the chord progression generator.
@@ -179,7 +193,6 @@ class TymoczkoChordGenerator:
     def _calculate_voice_leading_distance(self, chord1, chord2):
         """
         Calculate the voice-leading distance between two chords.
-        Based on Tymoczko's principle of efficient voice leading.
         """
         # If chords have different numbers of notes, pad the shorter one
         len1, len2 = len(chord1), len(chord2)
@@ -210,7 +223,6 @@ class TymoczkoChordGenerator:
     def _find_optimal_voicing(self, target_notes, prev_voicing):
         """
         Find the optimal voicing for the target notes that minimizes voice leading distance.
-        Uses Tymoczko's principle of minimal voice leading motion.
         """
         best_voicing = None
         best_distance = float('inf')
@@ -942,7 +954,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     # Create a chord generator in C minor
-    chord_gen = TymoczkoChordGenerator(key=0)
+    chord_gen = VoiceLeadingChordGenerator(key=0)
     
     # Function to generate and play a progression
     def generate_and_play_progression(open_player=not args.no_open):
